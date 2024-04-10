@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"sort"
 	"strings"
+	"unicode"
 	"unsafe"
 )
 
@@ -101,6 +102,8 @@ type AdParse struct {
 	WriteHandle *io.PipeWriter
 }
 
+const BUFSIZE = 0x8000
+
 func IsAlign(offset uint32, size uint32) bool {
 	if size < 2 {
 		return true
@@ -122,7 +125,7 @@ func (ad *AdParse) VerbosePrintf(format string, v ...any) {
 func (ad *AdParse) Init(in, out *os.File, nofmt, verbose bool) {
 	ad.In = in
 	ad.Out = out
-	ad.Buffer = make([]byte, 4096)
+	ad.Buffer = make([]byte, BUFSIZE)
 	ad.Structs = make(map[uint32]Dsect)
 	ad.Verbose = verbose
 	ad.Nofmt = nofmt
@@ -159,6 +162,9 @@ func (ad *AdParse) Term() {
 }
 
 func (ad *AdParse) FillBuf(size int) (err error) {
+	if size > BUFSIZE {
+		log.Fatalf("Record body size %d > %d\n", size, BUFSIZE)
+	}
 	n, er := ad.In.Read(ad.Buffer[:size])
 	if n != size {
 		if er == nil {
@@ -309,7 +315,7 @@ func (ad *AdParse) Parse() (err error) {
 func (ad *AdParse) PrintGoStructs() {
 	for _, v := range ad.Structs {
 		if len(v.Name) > 0 {
-			Name := fmt.Sprintf("%s%s", v.Name[:1], strings.ToLower(v.Name[1:]))
+			Name := ToVarName(v.Name)
 			ad.OutPrintf("type %s struct {\n", Name)
 			sort.Slice(v.Mem, func(i, j int) bool {
 				return v.Mem[i].Offset < v.Mem[j].Offset
@@ -321,7 +327,7 @@ func (ad *AdParse) PrintGoStructs() {
 					ad.OutPrintf("  _ [%d]byte // offset 0x%04x (%d)\n", gap, x.Offset, x.Offset)
 					cursor += uint32(gap)
 				}
-				XName := fmt.Sprintf("%s%s", x.Name[:1], strings.ToLower(x.Name[1:]))
+				XName := ToVarName(x.Name)
 				XType := TypeNameInStruct(x.Offset, x.Size, x.Dup, x.Type)
 				if x.Dup == 0 && ((i + 1) < len(v.Mem)) {
 					// Zero length array is allowed for the last element of a structure
@@ -572,6 +578,24 @@ func e2a(e []byte) (a []byte) {
 		a[i] = e2atable[e[i]]
 	}
 	return
+}
+
+func ToVarName(input string) string {
+	input = strings.TrimSpace(input)
+	input = strings.ReplaceAll(input, " ", "_")
+	input = strings.ToUpper(input[:1]) + strings.ToLower(input[1:])
+	isValidRune := func(r rune) bool {
+		return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'
+	}
+	var validName strings.Builder
+	for _, r := range input {
+		if isValidRune(r) {
+			validName.WriteRune(r)
+		} else {
+			validName.WriteString(fmt.Sprintf("_x%02X", r))
+		}
+	}
+	return validName.String()
 }
 
 func main() {
