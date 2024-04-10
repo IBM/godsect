@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/bits"
 	"os"
 	"os/exec"
 	"sort"
@@ -105,12 +106,10 @@ type AdParse struct {
 const BUFSIZE = 0x8000
 
 func IsAlign(offset uint32, size uint32) bool {
-	if size < 2 {
-		return true
+	if bits.OnesCount32(size) > 1 {
+		return false
 	}
-	size--
-	mask := (uint32(1) << size) - uint32(1)
-	if (mask & offset) == 0 {
+	if ((size - 1) & offset) == 0 {
 		return true
 	}
 	return false
