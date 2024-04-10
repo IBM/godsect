@@ -367,13 +367,17 @@ func TypeNameInStruct(offset uint32, typesize uint32, dupfactor uint32, typecode
 			case "AD":
 				name = "unsafe.Pointer"
 			}
+		default:
+			if typesize > 1 {
+				name = fmt.Sprintf("[%d]byte", typesize)
+			}
 		}
 	}
 	// fall thru
 	if dupfactor == 1 {
-		result = fmt.Sprintf("[%d]%s", typesize, name)
+		result = fmt.Sprintf("%s", name)
 	} else {
-		result = fmt.Sprintf("[%d][%d]%s", dupfactor, typesize, name)
+		result = fmt.Sprintf("[%d]%s", dupfactor, name)
 	}
 	return
 }
