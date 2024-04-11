@@ -296,7 +296,7 @@ func (ad *AdParse) Parse() (err error) {
 					ds1.Mem = append(ds1.Mem, m)
 					ad.Structs[sym.Esdid] = ds1
 				}
-				ad.VerbosePrintf("// Dsect member %+v\n", m)
+				ad.VerbosePrintf("// Dsect member %+v Esdid %d\n", m, sym.Esdid)
 			} else {
 				ad.VerbosePrintf("// Sym %+v\n", sym)
 			}
@@ -321,18 +321,20 @@ func (ad *AdParse) PrintGoStructs() {
 			})
 			cursor := uint32(0)
 			for i, x := range v.Mem {
+				XName := ToVarName(x.Name)
 				gap := int(x.Offset) - int(cursor)
 				if gap > 0 {
 					ad.OutPrintf("  _ [%d]byte // offset 0x%04x (%d)\n", gap, x.Offset, x.Offset)
 					cursor += uint32(gap)
+				} else if gap < 0 {
+					ad.OutPrintf(" // item %s of type:%s size:%d at offset %d with count %d skipped because origin overlaps previous member.\n", XName, x.Type, x.Size, x.Offset, x.Dup)
+					continue
 				}
-				XName := ToVarName(x.Name)
 				XType := TypeNameInStruct(x.Offset, x.Size, x.Dup, x.Type)
 				if x.Dup == 0 && ((i + 1) < len(v.Mem)) {
 					// Zero length array is allowed for the last element of a structure
 					ad.OutPrintf(" // item %s of type:%s size:%d at offset %d with 0 count skipped\n", XName, x.Type, x.Size, x.Offset)
 				} else {
-
 					ad.OutPrintf("  %s %s // offset 0x%04x (%d) type %s\n", XName, XType, x.Offset, x.Offset, x.Type)
 					cursor += (x.Size * x.Dup)
 				}
