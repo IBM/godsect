@@ -324,7 +324,7 @@ func (ad *AdParse) PrintGoStructs() {
 				XName := ToVarName(x.Name)
 				gap := int(x.Offset) - int(cursor)
 				if gap > 0 {
-					ad.OutPrintf("  _ [%d]byte // offset 0x%04x (%d)\n", gap, x.Offset, x.Offset)
+					ad.OutPrintf("  _ [%d]byte // offset 0x%04x (%d), filler size %d\n", gap, x.Offset, x.Offset, gap)
 					cursor += uint32(gap)
 				} else if gap < 0 {
 					ad.OutPrintf(" // item %s of type:%s size:%d at offset %d with count %d skipped because origin overlaps previous member.\n", XName, x.Type, x.Size, x.Offset, x.Dup)
@@ -335,7 +335,7 @@ func (ad *AdParse) PrintGoStructs() {
 					// Zero length array is allowed for the last element of a structure
 					ad.OutPrintf(" // item %s of type:%s size:%d at offset %d with 0 count skipped\n", XName, x.Type, x.Size, x.Offset)
 				} else {
-					ad.OutPrintf("  %s %s // offset 0x%04x (%d) type %s\n", XName, XType, x.Offset, x.Offset, x.Type)
+					ad.OutPrintf("  %s %s // offset 0x%04x (%d) type %s, size/count: %d/%d\n", XName, XType, x.Offset, x.Offset, x.Type, x.Size, x.Dup)
 					cursor += (x.Size * x.Dup)
 				}
 			}
@@ -345,7 +345,12 @@ func (ad *AdParse) PrintGoStructs() {
 }
 
 func TypeNameInStruct(offset uint32, typesize uint32, dupfactor uint32, typecode string) (result string) {
-	name := "byte"
+	var name string
+	if typesize > 1 {
+		name = fmt.Sprintf("[%d]byte", typesize)
+	} else {
+		name = "byte"
+	}
 	if IsAlign(offset, typesize) {
 		switch typesize {
 		case 2:
@@ -368,10 +373,6 @@ func TypeNameInStruct(offset uint32, typesize uint32, dupfactor uint32, typecode
 				name = "uint64"
 			case "AD":
 				name = "unsafe.Pointer"
-			}
-		default:
-			if typesize > 1 {
-				name = fmt.Sprintf("[%d]byte", typesize)
 			}
 		}
 	}
