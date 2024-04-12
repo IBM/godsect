@@ -9,6 +9,7 @@ import (
 	"math/bits"
 	"os"
 	"os/exec"
+	"regexp"
 	"sort"
 	"strings"
 	"unicode"
@@ -86,6 +87,10 @@ type Dsect struct {
 	TotalSize uint32
 	Mem       []Member
 }
+type RegRepl struct {
+	Re   *regexp.Regexp
+	Repl string
+}
 
 type AdParse struct {
 	In          *os.File
@@ -101,6 +106,7 @@ type AdParse struct {
 	Cmd         *exec.Cmd
 	ReadHandle  *io.PipeReader
 	WriteHandle *io.PipeWriter
+	NameRegList []RegRepl
 }
 
 const BUFSIZE = 0x8000
@@ -121,13 +127,59 @@ func (ad *AdParse) VerbosePrintf(format string, v ...any) {
 	}
 }
 
-func (ad *AdParse) Init(in, out *os.File, nofmt, verbose bool) {
+func (ad *AdParse) ParseChangeExpr(s string) (lasterror error) {
+	STokenize := func(s string, d byte) []string {
+		var tokens []string
+		var currentToken string
+		escaped := false
+		for _, char := range s {
+			if byte(char) == '\\' && !escaped {
+				escaped = true
+			} else if byte(char) == d && !escaped {
+				tokens = append(tokens, currentToken)
+				currentToken = ""
+			} else {
+				currentToken += string(char)
+				escaped = false
+			}
+		}
+		if currentToken != "" {
+			tokens = append(tokens, currentToken)
+		}
+		return tokens
+	}
+
+	tokens := STokenize(s, ';')
+	for _, token := range tokens {
+		res := STokenize(token, '/')
+		if len(res) != 2 {
+			lasterror = fmt.Errorf("change expression \"%s\" is not valid, it should be of the form \"from.../to...\"\n", token)
+		} else {
+			re, err := regexp.Compile(res[0])
+			if re != nil {
+				var r RegRepl
+				r.Re = re
+				r.Repl = res[1]
+				ad.NameRegList = append(ad.NameRegList, r)
+			} else {
+				lasterror = fmt.Errorf("Regex changing \"%s\" to \"%s\" is not valid, error \"%s\"\n", res[0], res[1], err)
+			}
+		}
+	}
+	return
+}
+
+func (ad *AdParse) Init(in, out *os.File, namechangeexpr string, nofmt, verbose bool) (err error) {
 	ad.In = in
 	ad.Out = out
 	ad.Buffer = make([]byte, BUFSIZE)
 	ad.Structs = make(map[uint32]Dsect)
 	ad.Verbose = verbose
 	ad.Nofmt = nofmt
+	err = ad.ParseChangeExpr(namechangeexpr)
+	if err != nil {
+		return
+	}
 	if !nofmt {
 		cmd := exec.Command("/bin/sh", "-c", "type gofmt >/dev/null 2>&1")
 		if err := cmd.Run(); err == nil {
@@ -139,6 +191,7 @@ func (ad *AdParse) Init(in, out *os.File, nofmt, verbose bool) {
 			ad.Cmd.Start()
 		}
 	}
+	return
 }
 
 func (ad *AdParse) OutPrintf(format string, v ...any) {
@@ -314,14 +367,14 @@ func (ad *AdParse) Parse() (err error) {
 func (ad *AdParse) PrintGoStructs() {
 	for _, v := range ad.Structs {
 		if len(v.Name) > 0 {
-			Name := ToVarName(v.Name)
+			Name := ad.ToVarName(v.Name)
 			ad.OutPrintf("type %s struct {\n", Name)
 			sort.Slice(v.Mem, func(i, j int) bool {
 				return v.Mem[i].Offset < v.Mem[j].Offset
 			})
 			cursor := uint32(0)
 			for i, x := range v.Mem {
-				XName := ToVarName(x.Name)
+				XName := ad.ToVarName(x.Name)
 				gap := int(x.Offset) - int(cursor)
 				if gap > 0 {
 					ad.OutPrintf("  _ [%d]byte // offset 0x%04x (%d), filler size %d\n", gap, x.Offset, x.Offset, gap)
@@ -586,7 +639,10 @@ func e2a(e []byte) (a []byte) {
 	return
 }
 
-func ToVarName(input string) string {
+func (ad *AdParse) ToVarName(input string) string {
+	for _, r := range ad.NameRegList {
+		input = (r.Re).ReplaceAllString(input, (r.Repl))
+	}
 	input = strings.TrimSpace(input)
 	input = strings.ReplaceAll(input, " ", "_")
 	input = strings.ToUpper(input[:1]) + strings.ToLower(input[1:])
@@ -609,9 +665,11 @@ func main() {
 	var in, out *os.File
 	var err error
 	var nofmt bool
+	var namechangeexpr string
 	var verbose bool
 	flag.StringVar(&output, "o", "-", "output file name")
 	flag.StringVar(&input, "i", "-", "input file name")
+	flag.StringVar(&namechangeexpr, "s", "", "a series of regexs separated by ';' to change characters in symbol name. e.g. \"@/_ptr_;$/_D_/;#/_size\"")
 	flag.BoolVar(&verbose, "v", false, "verbose with lots of diagnostic messages")
 	flag.BoolVar(&nofmt, "n", false, "dont format with gofmt")
 	flag.Parse()
@@ -633,7 +691,10 @@ func main() {
 		out = os.Stdout
 	}
 	var adp AdParse
-	adp.Init(in, out, nofmt, verbose)
+	err = adp.Init(in, out, namechangeexpr, nofmt, verbose)
+	if err != nil {
+		log.Fatalf("Init error: %v\n", err)
+	}
 	defer adp.Term()
 	err = adp.Parse()
 	if err != nil && err != io.EOF {
