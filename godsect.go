@@ -43,7 +43,7 @@ var recordTypes = map[uint16]RecordType{
 	0x0062: {0x0062, "Macro and Copy Code Cross Reference", 1},
 	0x0070: {0x0070, "User Data", 1},
 	0x0080: {0x0080, "USING Map", 1},
-	0x0090: {0x0090, "Assembly Statistick", 2},
+	0x0090: {0x0090, "Assembly Statistics", 2},
 }
 
 var index int
