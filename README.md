@@ -2,7 +2,15 @@
 
 A utility to create Go structure types from DSECT information in ADATA file created by HLASM.
 
-# Example
+# Example 1
+```
+/bin/as -mgoff -I ASM.AASMMAC1 --gadata=sample.ad "//'ASM.AASMSAM1(ASMAXADR)'"
+```
+```
+godsect -i sample.ad -o sample.go
+```
+
+# Example 2
 
 HLASM assembly source: `example.asm`
 
