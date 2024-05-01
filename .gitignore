@@ -1,2 +1,6 @@
 godsect
 ._*
+*.ad
+*.LISTING
+*.SYSADATA
+*.lst

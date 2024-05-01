@@ -86,6 +86,12 @@ type Dsect struct {
 	Name      string
 	TotalSize uint32
 	Mem       []Member
+	Equs      []Equ
+}
+type Equ struct {
+	Esdid uint32
+	Name  string
+	Value int32
 }
 type RegRepl struct {
 	Re   *regexp.Regexp
@@ -100,6 +106,7 @@ type AdParse struct {
 	Buffer      []byte
 	CHeader     CommonHeaderData
 	Structs     map[uint32]Dsect
+	Equs        []Equ
 	HasGofmt    bool
 	Nofmt       bool
 	Verbose     bool
@@ -350,6 +357,25 @@ func (ad *AdParse) Parse() (err error) {
 					ad.Structs[sym.Esdid] = ds1
 				}
 				ad.VerbosePrintf("// Dsect member %+v Esdid %d\n", m, sym.Esdid)
+			} else if sym.SymbolType == 0x0c {
+				ad.VerbosePrintf("// Sym %+v\n", sym)
+				ad.VerbosePrintf("EQU\n")
+				ad.VerbosePrintf("Name %s\n", sym.Name)
+				ad.VerbosePrintf("Offset %d 0x%x\n", int32(sym.Location), sym.Location)
+				ad.VerbosePrintf("Type %s\n", strings.TrimSpace(sym.AsmType))
+				ad.VerbosePrintf("Len attr %d\n", sym.LenAttr)
+				ad.VerbosePrintf("Dup factor %d\n", sym.DupFactor)
+				var e Equ
+				e.Esdid = sym.Esdid
+				e.Name = sym.Name
+				e.Value = int32(sym.Location)
+				ds, ok := ad.Structs[sym.Esdid]
+				if ok {
+					ds.Equs = append(ds.Equs, e)
+					ad.Structs[sym.Esdid] = ds
+				} else {
+					ad.Equs = append(ad.Equs, e)
+				}
 			} else {
 				ad.VerbosePrintf("// Sym %+v\n", sym)
 			}
@@ -393,7 +419,27 @@ func (ad *AdParse) PrintGoStructs() {
 				}
 			}
 			ad.OutPrintf("}\nconst %sSize = %d\n\n", Name, v.TotalSize)
+			if len(v.Equs) > 0 {
+				ad.OutPrintf("const (\n")
+				for _, e := range v.Equs {
+					if len(e.Name) > 0 {
+						Name := ad.ToVarName(e.Name)
+						ad.OutPrintf(" %s = %d\n", Name, e.Value)
+					}
+				}
+				ad.OutPrintf(")\n")
+			}
 		}
+	}
+	if len(ad.Equs) > 0 {
+		ad.OutPrintf("const (\n")
+		for _, e := range ad.Equs {
+			if len(e.Name) > 0 {
+				Name := ad.ToVarName(e.Name)
+				ad.OutPrintf(" %s = %d\n", Name, e.Value)
+			}
+		}
+		ad.OutPrintf(")\n")
 	}
 }
 
