@@ -391,7 +391,15 @@ func (ad *AdParse) Parse() (err error) {
 }
 
 func (ad *AdParse) PrintGoStructs() {
+	list := make([]uint32, 0, len(ad.Structs))
 	for _, v := range ad.Structs {
+		list = append(list, v.Esdid)
+	}
+	sort.Slice(list, func(i, j int) bool {
+		return i > j
+	})
+	for _, w := range list {
+		v := ad.Structs[w]
 		if len(v.Name) > 0 {
 			Name := ad.ToVarName(v.Name)
 			ad.OutPrintf("type %s struct {\n", Name)
