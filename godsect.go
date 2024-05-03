@@ -411,7 +411,7 @@ func (ad *AdParse) PrintGoStructs() {
 				XName := ad.ToVarName(x.Name)
 				gap := int(x.Offset) - int(cursor)
 				if gap > 0 {
-					ad.OutPrintf("  _ [%d]byte // offset 0x%04x (%d), filler size %d\n", gap, x.Offset, x.Offset, gap)
+					ad.OutPrintf("  _ [%d]byte // offset 0x%04x (%d), filler size %d\n", gap, cursor, cursor, gap)
 					cursor += uint32(gap)
 				} else if gap < 0 {
 					ad.OutPrintf(" // item %s of type:%s size:%d at offset %d with count %d skipped because origin overlaps previous member.\n", XName, x.Type, x.Size, x.Offset, x.Dup)
