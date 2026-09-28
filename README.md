@@ -2,6 +2,29 @@
 
 A utility to create Go structure types from DSECT information in ADATA file created by HLASM.
 
+## Build
+
+```
+go build -o godsect
+```
+
+or
+
+```
+make
+```
+
+`make` embeds the version via `-X main.version=...`, taken from
+`$GODSECT_VERSION` or else `git describe --tags --always --dirty`.
+A plain `go build` without `-ldflags` reports `dev`.
+
+Print the embedded version:
+
+```
+./godsect -V
+./godsect -version
+```
+
 # Example 1
 ```
 /bin/as -mgoff -I ASM.AASMMAC1 --gadata=sample.ad "//'ASM.AASMSAM1(ASMAXADR)'"

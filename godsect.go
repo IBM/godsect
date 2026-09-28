@@ -48,6 +48,13 @@ var recordTypes = map[uint16]RecordType{
 
 var index int
 
+// version defaults to "dev" and is overridden at build time via:
+//
+//	go build -ldflags "-X main.version=..."
+//
+// See Makefile (GODSECT_VERSION, with git describe / dev-<timestamp> fallback).
+var version = "dev"
+
 type CommonHeaderData struct {
 	LangCode     byte
 	RecType      uint16
@@ -727,7 +734,14 @@ func main() {
 	flag.StringVar(&namechangeexpr, "s", "", "a series of regexs separated by ';' to change characters in symbol name. e.g. \"@/_ptr_;$/_D_/;#/_size\"")
 	flag.BoolVar(&verbose, "v", false, "verbose with lots of diagnostic messages")
 	flag.BoolVar(&nofmt, "n", false, "dont format with gofmt")
+	var showVersion bool
+	flag.BoolVar(&showVersion, "V", false, "Print version and exit")
+	flag.BoolVar(&showVersion, "version", false, "Print version and exit")
 	flag.Parse()
+	if showVersion {
+		fmt.Println(version)
+		return
+	}
 	if input != "-" {
 		in, err = os.Open(input)
 		if err != nil {
