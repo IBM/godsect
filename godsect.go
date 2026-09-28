@@ -275,11 +275,11 @@ func (ad *AdParse) Parse() (err error) {
 		ad.VerbosePrintf("Record Type %+v\n", recordTypes[ad.CHeader.RecType])
 		er := ad.FillBuf(int(ad.CHeader.DataLen))
 		if er != nil {
-			err = err
+			err = er
 			return
 		}
 		ad.VerbosePrintf("Record Data for type %04x\n", ad.CHeader.RecType)
-		ad.DiagDump(uintptr(unsafe.Pointer(&ad.Buffer[0])), uintptr(ad.CHeader.DataLen))
+		ad.DiagDump(unsafe.Pointer(&ad.Buffer[0]), int(ad.CHeader.DataLen))
 		switch ad.CHeader.RecType {
 		case 0x0020:
 			if ad.Buffer[0] == 0xff {
@@ -569,11 +569,12 @@ var hexchar [16]byte = [16]byte{
 	'c', 'd', 'e', 'f',
 }
 
-func (ad *AdParse) DiagDump(ptr uintptr, size uintptr) {
+func (ad *AdParse) DiagDump(base unsafe.Pointer, size int) {
 	var line [90]byte
 	var i uintptr
+	off := 0
 	for size > 0 {
-		lbl := ptr
+		lbl := uintptr(base) + uintptr(off)
 		bits := (unsafe.Sizeof(lbl) * 8)
 		for bits > 0 {
 			if 0 == (0x0f & (lbl >> (bits - 4))) {
@@ -592,9 +593,9 @@ func (ad *AdParse) DiagDump(ptr uintptr, size uintptr) {
 		line[i] = ' '
 		i++
 
-		ascptr := ptr
+		ascOff := off
 		ascsize := size
-		ebcptr := ptr
+		ebcOff := off
 		ebcsize := size
 
 		fmt1 := 0
@@ -602,13 +603,13 @@ func (ad *AdParse) DiagDump(ptr uintptr, size uintptr) {
 
 		for ; fmt1 < fmt2; fmt1++ {
 			if size > 0 {
-				b := *(*byte)(unsafe.Pointer(ptr))
+				b := *(*byte)(unsafe.Add(base, off))
 				line[i] = hexchar[0x0f&(b>>4)]
 				i++
 				line[i] = hexchar[0x0f&(b)]
 				i++
 				size--
-				ptr++
+				off++
 			} else {
 				line[i] = ' '
 				i++
@@ -622,10 +623,10 @@ func (ad *AdParse) DiagDump(ptr uintptr, size uintptr) {
 		}
 		for fmt1 = 0; fmt1 < fmt2; fmt1++ {
 			if ascsize > 0 {
-				b := *(*byte)(unsafe.Pointer(ascptr))
+				b := *(*byte)(unsafe.Add(base, ascOff))
 				line[i] = atbl[0xff&b]
 				ascsize--
-				ascptr++
+				ascOff++
 			} else {
 				line[i] = ' '
 			}
@@ -635,10 +636,10 @@ func (ad *AdParse) DiagDump(ptr uintptr, size uintptr) {
 		i++
 		for fmt1 = 0; fmt1 < fmt2; fmt1++ {
 			if ebcsize > 0 {
-				b := *(*byte)(unsafe.Pointer(ebcptr))
+				b := *(*byte)(unsafe.Add(base, ebcOff))
 				line[i] = etbl[0xff&b]
 				ebcsize--
-				ebcptr++
+				ebcOff++
 			} else {
 				line[i] = ' '
 			}
